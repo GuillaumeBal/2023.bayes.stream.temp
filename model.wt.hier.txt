@@ -1,0 +1,209 @@
+model{
+################################################################################
+#                               Air temperature                                #
+################################################################################
+
+# Dynamic structures such as AR1 residuals are very slow in JAGS (and BUGS)
+# Need to break autocorrelation by blocks to help
+
+for(a in 1:n.ac.periods){
+  
+  # special definition of first at.ts with AR1 block (tau base)
+  for(t in ac.period.cutoff[1 + 2 * (a - 1)]){
+    at.data.s[t] ~ dnorm(mu.at[t] + 0, tau.at[set.par[t]])
+    mu.at[t] <- alpha.at[ind.6m[t]] + beta.at[ind.6m[t]] * sin(2 * pi.value * (t.y.idx[t] + t0.at + step(0 - north.hem) * n.t.step.year / 2) / n.t.step.year)
+    res.at[t] <- at.data.s[t] - mu.at[t]
+  }
+  
+  # autocorrelated residuals following first residual value within AR1 block (tau autocorrelation)
+  for(t in (ac.period.cutoff[1 + 2 * (a - 1)] + 1) : ac.period.cutoff[2 * a]){
+    at.data.s[t] ~ dnorm(mu.at[t] + rho.at[set.par[t]] * res.at[t - 1], tau.at.ac[set.par[t]])
+    mu.at[t] <- alpha.at[ind.6m[t]] + beta.at[ind.6m[t]] * sin(2 * pi.value * (t.y.idx[t] + t0.at + step(0 - north.hem) * n.t.step.year / 2) / n.t.step.year)
+    res.at[t] <- at.data.s[t] - mu.at[t]
+  }
+  
+}
+
+### PRIORS AT ---------------------------------------------------------------------------
+
+for(sm in 1:n.6m.windows){
+  alpha.at[sm] ~ dnorm(p.mean.alpha.at, .1)
+  beta.at[sm] ~ dlnorm(log(p.mean.beta.at) - .5 , 1)
+  min.at[sm] <- alpha.at[sm] - beta.at[sm]
+  max.at[sm] <- alpha.at[sm] + beta.at[sm]
+}
+
+t0.at ~ dnorm(- n.time.steps.year / 4, 
+              1 / pow((n.time.steps.year / (4)) * .1, 2))
+
+# in case forecasting part deemed to have different values
+for(p in 1:n.set.parameters){
+	rho.at[p] ~ dbeta(5, 2)
+	#tau.at[p] ~ dgamma(0.001, 0.001)
+	#sigma.at[p] <- sqrt(1 / tau.at[p])
+	tau.at[p] <- 1 / pow(sigma.at[p], 2)
+    sigma.at[p] ~ dgamma(2, 1)
+	tau.at.ac[p] <- tau.at[p] / (1 - pow(rho.at[p], 2))
+}
+################################################################################
+#                                  Log flow                                    #
+################################################################################
+
+for(a in 1:n.ac.periods){
+  
+  for(t in ac.period.cutoff[1 + 2 * (a - 1)]){
+    lfl.data.s[t] ~ dnorm(mu.lfl[t] + 0, tau.lfl[set.par[t]])
+    mu.lfl[t] <- alpha.lfl[ind.6m[t]] - beta.lfl[ind.6m[t]] * sin(2 * pi.value * (t.y.idx[t] + t0.lfl + step(0 - north.hem) * n.t.step.year / 2) / n.t.step.year)
+    res.lfl[t] <- lfl.data.s[t] - mu.lfl[t]
+  }
+  
+  for(t in (ac.period.cutoff[1 + 2 * (a - 1)] + 1) : ac.period.cutoff[2 * a]){
+    lfl.data.s[t] ~ dnorm(mu.lfl[t] + rho.lfl[set.par[t]] * res.lfl[t - 1], tau.lfl.ac[set.par[t]]) 
+    mu.lfl[t] <- alpha.lfl[ind.6m[t]] - beta.lfl[ind.6m[t]] * sin(2 * pi.value * (t.y.idx[t] + t0.lfl + step(0 - north.hem) * n.t.step.year / 2) / n.t.step.year) # - because of inverse frequency with temp data
+    res.lfl[t] <- lfl.data.s[t] - mu.lfl[t]
+  }
+  
+}
+
+### PRIORS LFL ---------------------------------------------------------------------------
+
+for(sm in 1:n.6m.windows){
+  alpha.lfl[sm] ~ dnorm(p.mean.alpha.lfl, .1)
+  beta.lfl[sm] ~ dlnorm(log(p.mean.beta.lfl) - .5 , 1)
+  min.lfl[sm] <- alpha.lfl[sm] - beta.lfl[sm]
+  max.lfl[sm] <- alpha.lfl[sm] + beta.lfl[sm]
+}
+
+t0.lfl ~ dnorm(- n.time.steps.year / 4, 
+              1 / pow((n.time.steps.year / (4)) * .1, 2))
+
+# in case forecasting part deemed to have different values
+for(p in 1:n.set.parameters){
+	rho.lfl[p] ~ dbeta(5, 2)
+	tau.lfl[p] <- 1 / pow(sigma.lfl[p], 2)
+    sigma.lfl[p] ~ dgamma(2, 1)
+	#tau.lfl[p] ~ dgamma(0.001, 0.001)
+	#sigma.lfl[p] <- sqrt(1 / tau.lfl[p])
+	tau.lfl.ac[p] <- tau.lfl[p] / (1 - pow(rho.lfl[p], 2))
+}
+################################################################################
+#                               Water temperature                              #
+################################################################################
+
+for(a in 1:n.ac.periods){
+  
+  # pick first value autocorrellation 
+  for(t in ac.period.cutoff[1 + 2 * (a - 1)]){
+    wt.data.s[t] ~ dnorm(mu.wt[t], tau.wt) # tau.wt[set.par[t]]
+    mu.wt[t] <- alpha.wt[ind.6m[t]] + beta.wt[ind.6m[t]] * sin(2 * pi.value * (t.y.idx[t] + t0.wt+ step(0 - north.hem) * n.t.step.year / 2) / n.t.step.year) + 
+      delta * (at.data.s[t] - mu.at[t]) + 
+      gamma * sin(2 * pi.value * (t.y.idx[t] + t0.wt+ step(0 - north.hem) * n.t.step.year / 2) / n.t.step.year) * (lfl.data.s[t] - mu.lfl[t])
+    mu.wt.ac[t] <- mu.wt[t] + 0
+    res.wt[t] <-  wt.data.s[t] - mu.wt[t]
+    res.wt.ac[t] <- wt.data.s[t] - mu.wt.ac[t]
+    wt.data.s.rep[t] ~ dnorm(mu.wt[t], tau.wt)
+  }
+  
+  for(t in (ac.period.cutoff[1 + 2 * (a - 1)] + 1) : ac.period.cutoff[2 * a]){
+    wt.data.s[t] ~ dnorm(mu.wt.ac[t], tau.wt.ac) # rho.wt[set.par[t]] tau.wt.ac[set.par[t]]
+    mu.wt[t] <- alpha.wt[ind.6m[t]] + beta.wt[ind.6m[t]] * sin(2 * pi.value * (t.y.idx[t] + t0.wt+ step(0 - north.hem) * n.t.step.year / 2) / n.t.step.year) +
+      delta * (at.data.s[t] - mu.at[t]) +
+      gamma * sin((t.y.idx[t] + t0.wt + step(0 - north.hem) * n.t.step.year / 2 +  n.t.step.year / 2) / n.t.step.year) * (lfl.data.s[t] - mu.lfl[t])		
+    mu.wt.ac[t] <- mu.wt[t] + rho.wt * res.wt[t - 1]
+    res.wt[t] <-  wt.data.s[t] - mu.wt[t]
+    res.wt.ac[t] <- wt.data.s[t] - mu.wt.ac[t]
+    wt.data.s.rep[t] ~ dnorm(mu.wt[t], tau.wt)
+  }
+  
+}
+
+### PRIORS WT ---------------------------------------------------------------------------
+
+for(sm in 1:n.6m.windows){
+  alpha.wt[sm] <- (max.wt[sm] + min.wt[sm]) / 2
+  beta.wt[sm] <- (max.wt[sm] - min.wt[sm]) / 2
+  
+  min.wt[sm] ~ dnorm(mu.min.wt[sm], tau.min.wt)
+  max.wt[sm] ~ dnorm(mu.max.wt[sm], tau.max.wt)
+  
+  mu.min.wt[sm] <- theta.0 + 
+    theta.1 * (min.at[sm] - mean(min.at[])) + 
+    theta.2 * (max.lfl[sm] - mean(max.lfl[]))
+  
+  mu.max.wt[sm] <- theta.0.p + 
+    theta.1.p * (max.at[sm] - mean(max.at[])) + # centered to help faster convergence
+    theta.2.p * (min.lfl[sm] - mean(min.lfl[]))
+}
+
+theta.0 <- p.mean.alpha.wt - delta.theta.0
+delta.theta.0 ~ dlnorm(log(5) - .5, 1)
+theta.1 ~ dnorm(0, 0.1)
+theta.2 ~ dnorm(0, 0.1)
+#tau.min.wt ~ dgamma(0.001, 0.001) 
+#sigma.min.wt <- sqrt(1 / tau.min.wt)
+sigma.min.wt ~ dgamma(2, 1)
+tau.min.wt <- 1 / pow(sigma.min.wt, 2)
+
+theta.0.p <- p.mean.alpha.wt + delta.theta.0.p
+delta.theta.0.p ~ dlnorm(log(5) - .5, 1)
+theta.1.p ~ dnorm(0, 0.1)
+theta.2.p ~ dnorm(0, 0.1)
+#tau.max.wt ~ dgamma(0.001, 0.001) 
+#sigma.max.wt <- sqrt(1 / tau.max.wt)
+sigma.max.wt ~ dgamma(2, 1)
+tau.max.wt <- 1 / pow(sigma.max.wt, 2)
+
+delta ~ dnorm(0, 1)
+gamma ~ dnorm(0, 1)
+
+rho.wt <- 0
+#tau.wt ~ dgamma(0.001, 0.001)
+#sigma.wt <- sqrt(1 / tau.wt)
+sigma.wt ~ dgamma(2, 1)
+tau.wt <- 1 / pow(sigma.wt, 2)
+tau.wt.ac <- tau.wt / (1 - pow(rho.wt, 2))
+
+t0.wt ~ dnorm(- n.time.steps.year / 4, 
+              1 / pow((n.time.steps.year / (4)) * .1, 2))
+
+################################################################################
+#                              further diagnostics                             #
+################################################################################
+
+# mean per 6 months of observed and replicated temperatures ======================
+
+time.1 <- n.t.step.year - round(n.t.step.year / 2) # round value away from 0
+time.2 <- n.t.step.year - time.1
+
+#for(sm in 1:round((n.6m.windows / 2))){
+  
+#  check.mean.wt[sm * 2 - 1] <- mean(wt.data.s.rep[(1 + n.t.step.year * (sm - 1)):(time.1 + n.t.step.year * (sm - 1))]) -
+#    mean(wt.data.s[(1 + n.t.step.year * (sm - 1)):(time.1 + n.t.step.year * (sm - 1))])
+  
+#  check.mean.wt[sm * 2] <- mean(wt.data.s.rep[(time.2 + n.t.step.year * (sm - 1)):(n.t.step.year + n.t.step.year * (sm - 1))]) -
+#    mean(wt.data.s[(time.2 + n.t.step.year * (sm - 1)):(n.t.step.year + n.t.step.year * (sm - 1))])
+  
+#}
+
+# water temperature residuals autocorrelation ====================================
+
+ac.part.1 <- res.wt.ac[1:(start.for - 2)] * res.wt.ac[2:(start.for - 1)] # cov part
+ac.part.2 <- pow(res.wt.ac[1:(start.for - 2)], 2)
+ac.part.3 <- pow(res.wt.ac[2:(start.for - 1)], 2)
+
+ac.wt <- sum(ac.part.1[]) / (pow(sum(ac.part.3[]), 0.5) * pow(sum(ac.part.3[]), 0.5))
+
+# chi2 test ======================================================================
+
+chi2.obs <- pow(res.wt[1:(n.time.steps - last.to.skip)], 2) / pow(sigma.wt, 2)
+chi2.rep <- pow(wt.data.s.rep[1:(n.time.steps - last.to.skip)] - mu.wt[1:(n.time.steps - last.to.skip)], 2) / pow(sigma.wt, 2)
+
+sum.chi2.obs <- sum(chi2.obs[])
+sum.chi2.rep <- sum(chi2.rep[])
+test.chi2 <- step(sum.chi2.rep - sum.chi2.obs)
+
+# mean fir error centered on 0 ? ==================================================
+
+mean.errors.fit <- mean(res.wt[1:(start.for - 1)])
+bias.fit <- step(mean.errors.fit)
+}
