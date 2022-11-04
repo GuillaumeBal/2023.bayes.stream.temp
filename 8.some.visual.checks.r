@@ -3,7 +3,8 @@
 par(par(mfcol = c(1, 1),
         oma = c(.1, .1, 1.5, .1),
         mar = c(2, 2, 2 , 1)))
-mcmc.summary.param[ , 'Rhat'] %>% hist(main = 'Rhat histogram', ylab = 'Value')
+mcmc.summary.param[ , 'Rhat'] %>% hist(main = 'Rhat histogram \n values must below 1.15', ylab = 'Value')
+abline(v = 1.15, col = 'red')
 
 # plot posteriors theta parameters =====================================
 
@@ -38,7 +39,7 @@ by(data = coda.fread[param.link.pos, ],
      return(NULL)
    }) %>% invisible()
 
-title('Parameters relationships between wt / at / lfl', outer = TRUE)
+title('Parameters of relationships between wt / at / lfl \nhistograms should be smooth', outer = TRUE)
 
 # alpha estimates =============================================================================
 
@@ -54,7 +55,10 @@ alpha.series.mean %>%
   ggplot(aes(x = year, y = mean, group = var)) %>% 
   geom_line %>% 
   facet_wrap( ~ var, nrow = 2, scales = 'free') %>% 
-  geom_smooth()
+  geom_smooth() +
+  ggtitle('Time series of 6 months values \n There should be not extreme outliers') +
+  ylab("Value")+
+  xlab("Year")
 
 # if check are included ===========================================================================================
 
@@ -98,7 +102,7 @@ if(fit.checks == 1){
     geom_hline(yintercept = 0, col = 'red') %>% 
     scale_y_continuous(name = "Error °C") %>% 
     scale_x_discrete('') %>% 
-    ggtitle('Mean error fitted values') %>% 
+    ggtitle('Average error of fitted values') %>% 
     theme_light()
   
   # chi2 check ======================================== 
@@ -119,7 +123,8 @@ if(fit.checks == 1){
     theme(legend.position = 'above') %>% 
     theme_light() %>% 
     labs(x = expression(paste('Sum ', Chi[obs]^2, sep = ' ')),
-         y = expression(paste('Sum ', Chi[rep]^2, sep = ' ')))
+         y = expression(paste('Sum ', Chi[rep]^2, sep = ' '))) %>% 
+    ggtitle('Consistency of data and model\nPoints should be centered around the line')
   
 }
 

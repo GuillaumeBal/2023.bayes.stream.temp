@@ -62,6 +62,6 @@ allow.hier <- 0
 # specify your date format (if you don't use same as example data file)
 date.format <- '%d/%m/%Y'
 
-# sourcinf the file below runs everything ================================
+# sourcing of the file below runs everything else ==============================
 
 source('1.master.run.file.r')
