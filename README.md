@@ -41,3 +41,6 @@ They will be stored within a folder called run outputs. this folder will have a 
 - "1.dic.table.txt", within the "run.outputs/2.model.wt.hier/" folder. It contains some fit statistics in case you want to perform some model comparisons.
 - "wt.complete.txt", within your main folder, containing you initial water temperature times series completed by estimates derived from the model fitted.
 
+## Data provided 
+
+Please note that air temperature data provided for the Scorff river are replicated data derived from the model fit supporting the published article. While data can be accessed for free by scientists on the French weather services website "https://donneespubliques.meteofrance.fr", the signed agreement we have does not allow us to share them directly. Your results will thus sligtly differ from ours.  
